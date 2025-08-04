@@ -41,10 +41,26 @@ const useService = () => {
     }
   };
 
+  const requestGet = async (endpoint: string): Promise<any> => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}${endpoint}`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + localStorage.getItem("token"),
+        },
+      });
+
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  };
+
   return {
     requestPost,
     modalData,
     setModalData,
+    requestGet,
   };
 };
 

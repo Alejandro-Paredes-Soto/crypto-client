@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import axios from "axios";
+import { redirect } from "next/navigation";
+
 import {
   TrendingUp,
   TrendingDown,
@@ -19,8 +22,6 @@ import {
   Filter,
 } from "lucide-react";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -29,8 +30,12 @@ import {
   AreaChart,
   Area,
 } from "recharts";
+import useDash from "./useDash";
+import Modal from "../components/Modal";
+import useService from "../services/useServices";
+import { useRouter } from "next/navigation";
 
-// Datos simulados de criptomonedas (simulando API de CoinMarketCap)
+//Data init
 const mockCryptoData = [
   {
     id: 1,
@@ -110,33 +115,83 @@ const availableCryptos = [
 ];
 
 export default function CryptoDashboard() {
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      redirect("/login");
+    }
+  }, []);
+  const router = useRouter();
   const [watchlist, setWatchlist] = useState(mockCryptoData);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedTimeRange, setSelectedTimeRange] = useState("24h");
   const [searchTerm, setSearchTerm] = useState("");
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [isAutoRefresh, setIsAutoRefresh] = useState(true);
-  const [selectedCrypto, setSelectedCrypto] = useState(null);
-  const intervalRef = useRef(null);
 
-  // Simular actualización automática de datos
+  const [isClient, setIsClient] = useState(false);
+
+  const [isOpenMenu, setisOpenMenu] = useState(false);
+
   useEffect(() => {
-    if (isAutoRefresh) {
-      //   intervalRef.current = setInterval(() => {
-      //     setWatchlist(prev => prev.map(crypto => ({
-      //       ...crypto,
-      //       price: crypto.price * (1 + (Math.random() - 0.5) * 0.02), // ±1% variación
-      //       change24h: crypto.change24h + (Math.random() - 0.5) * 0.5
-      //     })));
-      //     setLastUpdate(new Date());
-      //   }, 5000); // Actualizar cada 5 segundos
-    }
+    setIsClient(true);
+  }, []);
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+  const { fetchCurrentPrices, mapApiToWatchlist } = useDash();
+  const { modalData, setModalData } = useService();
+
+  useEffect(() => {
+    if (!isAutoRefresh) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        console.log("Actualizando precios cada 5 segundos...");
+        const res = await fetchCurrentPrices();
+        const newData = mapApiToWatchlist(res.data.data).map((d: any) => {
+          return {
+            id: d.id,
+            symbol: d.symbol,
+            name: d.name,
+            price: d.price,
+            change24h: 2.45,
+            volume24h: d.volume24h,
+            marketCap: d.marketCap,
+            history: [
+              {
+                time: "00:00",
+                price: Math.floor(10000 + Math.random() * 90000),
+              },
+              {
+                time: "04:00",
+                price: Math.floor(10000 + Math.random() * 90000),
+              },
+              {
+                time: "08:00",
+                price: Math.floor(10000 + Math.random() * 90000),
+              },
+              {
+                time: "12:00",
+                price: Math.floor(10000 + Math.random() * 90000),
+              },
+              {
+                time: "16:00",
+                price: Math.floor(10000 + Math.random() * 90000),
+              },
+              {
+                time: "20:00",
+                price: Math.floor(10000 + Math.random() * 90000),
+              },
+            ],
+          };
+        });
+
+        setWatchlist(newData);
+        setLastUpdate(new Date());
+      } catch (error) {
+        console.error("Error al actualizar precios", error);
       }
-    };
+    }, 5000);
+
+    return () => clearInterval(intervalId);
   }, [isAutoRefresh]);
 
   const formatPrice = (price: any) => {
@@ -149,26 +204,70 @@ export default function CryptoDashboard() {
   };
 
   const formatVolume = (volume: any) => {
-    if (volume >= 1e9) {
-      return `$${(volume / 1e9).toFixed(2)}B`;
-    } else if (volume >= 1e6) {
-      return `$${(volume / 1e6).toFixed(2)}M`;
-    }
+    if (!volume || isNaN(volume)) return "$0.00";
+    if (volume >= 1e9) return `$${(volume / 1e9).toFixed(2)}B`;
+    if (volume >= 1e6) return `$${(volume / 1e6).toFixed(2)}M`;
     return `$${volume.toLocaleString()}`;
   };
 
-  const addToWatchlist = (crypto: any) => {
-    const newCrypto = {
-      ...crypto,
-      volume24h: Math.random() * 1000000000,
-      marketCap: crypto.price * Math.random() * 1000000000,
-      history: Array.from({ length: 6 }, (_, i) => ({
-        time: `${i * 4}:00`,
-        price: crypto.price * (1 + (Math.random() - 0.5) * 0.1),
-      })),
+  const addToWatchlist = async (crypto: any) => {
+    //setShowAddModal(false);
+
+    let obj = {
+      symbol: crypto.symbol,
+      name: crypto.name,
+      price: crypto.price,
+      change24h: crypto.change24h,
+      volume_24h: 28450000000,
+      market_cap: 847500000000,
+      percent_change_24h: 55,
+      history: [
+        { time: "00:00", price: 42800 },
+        { time: "04:00", price: 42950 },
+        { time: "08:00", price: 43100 },
+        { time: "12:00", price: 43380 },
+        { time: "16:00", price: 43200 },
+        { time: "20:00", price: 43250 },
+      ],
     };
-    setWatchlist((prev) => [...prev, newCrypto]);
-    setShowAddModal(false);
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/coin/addCrypto`, obj, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + localStorage.getItem("token"),
+        },
+      });
+
+      if (response.status == 200) {
+        setModalData({
+          ...modalData,
+          type: "success",
+          isOpen: true,
+          title: "Agregado",
+          onNext: () => setModalData((prev) => ({ ...prev, isOpen: false })),
+          onClose: () => setModalData((prev) => ({ ...prev, isOpen: false })),
+          message: "Crypto agregado",
+        });
+
+        const res = await fetchCurrentPrices();
+
+        let newData = mapApiToWatchlist(res.data.data);
+        setWatchlist(newData);
+        setShowAddModal(false);
+      }
+    } catch (error) {
+      setModalData({
+        ...modalData,
+        type: "error",
+        isOpen: true,
+        title: "Error",
+        onNext: () => setModalData((prev) => ({ ...prev, isOpen: false })),
+        onClose: () => setModalData((prev) => ({ ...prev, isOpen: false })),
+        message: "Ocurrio un error",
+      });
+    }
   };
 
   const removeFromWatchlist = (id: any) => {
@@ -182,7 +281,7 @@ export default function CryptoDashboard() {
   );
 
   const totalPortfolioValue = watchlist.reduce(
-    (sum, crypto) => sum + crypto.price,
+    (sum, crypto) => (sum + crypto.price == null ? 0 : crypto.price),
     0
   );
   const avgChange =
@@ -217,7 +316,13 @@ export default function CryptoDashboard() {
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2 text-sm text-slate-300">
                   <Clock className="w-4 h-4" />
-                  <span>Actualizado: {lastUpdate.toLocaleTimeString()}</span>
+                  <span>
+                    {isClient && (
+                      <span>
+                        Actualizado: {lastUpdate.toLocaleTimeString()}
+                      </span>
+                    )}
+                  </span>
                 </div>
 
                 <button
@@ -227,17 +332,40 @@ export default function CryptoDashboard() {
                       ? "bg-green-600/20 text-green-400"
                       : "bg-slate-600/20 text-slate-400"
                   }`}
-                >
-                  {/* <Refresh className={`w-4 h-4 ${isAutoRefresh ? 'animate-spin' : ''}`} /> */}
-                </button>
+                ></button>
 
                 <button className="p-2 rounded-lg bg-white/10 text-slate-300 hover:text-white transition-colors">
                   <Bell className="w-4 h-4" />
                 </button>
 
-                <button className="p-2 rounded-lg bg-white/10 text-slate-300 hover:text-white transition-colors">
-                  <User className="w-4 h-4" />
-                </button>
+                <div className="relative z-[1000] inline-block text-left">
+                  {/* Botón del usuario */}
+                  <button
+                    onClick={() => setisOpenMenu(!isOpenMenu)}
+                    className="p-2 rounded-lg bg-white/10 text-slate-300 hover:text-white transition-colors"
+                  >
+                    <User className="w-4 h-4" />
+                  </button>
+
+                  {/* Menú dropdown */}
+                  {isOpenMenu && (
+                    <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-[9999]">
+                      <ul className="py-1">
+                        <li>
+                          <button
+                            className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                            onClick={() => {
+                              localStorage.removeItem("token");
+                              router.push("/login");
+                            }}
+                          >
+                            Cerrar sesión
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -246,7 +374,10 @@ export default function CryptoDashboard() {
         {/* Main content */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Portfolio overview */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div
+            className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
+            style={{ zIndex: "-1", position: "relative" }}
+          >
             <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-slate-300 text-sm font-medium">
@@ -312,36 +443,22 @@ export default function CryptoDashboard() {
           <div className="flex flex-col sm:flex-row items-center justify-between mb-8 space-y-4 sm:space-y-0">
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => setShowAddModal(true)}
+                onClick={() => {
+                  setShowAddModal(true);
+                }}
                 className="bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white px-4 py-2 rounded-xl flex items-center space-x-2 transition-all duration-200 transform hover:scale-105"
               >
                 <Plus className="w-4 h-4" />
                 <span>Agregar Cripto</span>
               </button>
-
-              <div className="flex bg-white/10 rounded-xl p-1">
-                {["1h", "24h", "7d", "30d"].map((range) => (
-                  <button
-                    key={range}
-                    onClick={() => setSelectedTimeRange(range)}
-                    className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                      selectedTimeRange === range
-                        ? "bg-purple-600 text-white"
-                        : "text-slate-300 hover:text-white"
-                    }`}
-                  >
-                    {range}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
 
           {/* Crypto cards */}
           <div className="space-y-6">
-            {watchlist.map((crypto) => (
+            {watchlist.map((crypto, index) => (
               <div
-                key={crypto.id}
+                key={index}
                 className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 hover:border-white/30 transition-all duration-200"
               >
                 <div className="p-6">
@@ -478,7 +595,9 @@ export default function CryptoDashboard() {
                 Agregar Criptomoneda
               </h3>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  setShowAddModal(false);
+                }}
                 className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-400 hover:text-white transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -502,8 +621,8 @@ export default function CryptoDashboard() {
               {filteredCryptos.map((crypto) => (
                 <div
                   key={crypto.id}
-                  className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
                   onClick={() => addToWatchlist(crypto)}
+                  className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-lg flex items-center justify-center">
@@ -537,6 +656,16 @@ export default function CryptoDashboard() {
           </div>
         </div>
       )}
+      <Modal
+        isOpen={modalData.isOpen}
+        message={modalData.message}
+        children={""}
+        onClose={modalData.onClose}
+        onNext={modalData.onNext}
+        title={modalData.title}
+        type="success"
+        key={4}
+      />
     </div>
   );
 }

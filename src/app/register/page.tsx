@@ -3,8 +3,17 @@
 import { Eye, EyeOff, TrendingUp, Shield, BarChart3 } from "lucide-react";
 import useRegister from "./useRegister";
 import Modal from "../components/Modal";
+import { redirect } from "next/navigation";
+import { useEffect } from "react";
 
 export default function Register() {
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      redirect("/dashboard");
+    }
+  }, []);
+
   const {
     handleSubmit,
     onRouterLink,
@@ -231,15 +240,6 @@ export default function Register() {
                       )}
                     </button>
                   </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </button>
                 </div>
 
                 <button

@@ -4,7 +4,17 @@ import { Eye, EyeOff, TrendingUp, Shield, BarChart3 } from "lucide-react";
 
 import useLogin from "./useLogin";
 
+import { redirect } from "next/navigation";
+import { useEffect } from "react";
+
 export default function Login() {
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      redirect("/dashboard");
+    }
+  }, []);
+
   const {
     isLoading,
     formData,
@@ -170,12 +180,6 @@ export default function Login() {
                     />
                     <span className="text-sm text-slate-300">Recordarme</span>
                   </label>
-                  <button
-                    type="button"
-                    className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </button>
                 </div>
 
                 <button

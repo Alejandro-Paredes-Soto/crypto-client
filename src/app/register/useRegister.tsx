@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import useService from "../services/useServices";
-// import { requestPost } from "../services/useServices";
 
 const useRegister = () => {
+  // Definir la ruta
   const router = useRouter();
   const { requestPost, modalData, setModalData } = useService();
 
+  // Definir la data inicial para enviar datos del usuario y registrarlo
   const [formData, setFormData] = useState({
     name: "",
     lastname: "",
@@ -21,6 +22,7 @@ const useRegister = () => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showPassword2, setShowPassword2] = useState<boolean>(false);
 
+  // Función para registrarte
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -30,6 +32,7 @@ const useRegister = () => {
         type: "error",
         isOpen: true,
         title: "Error",
+        onNext: () => setModalData((prev) => ({ ...prev, isOpen: false })),
         onClose: () => setModalData((prev) => ({ ...prev, isOpen: false })),
         message: "Las contraseñas no coinciden",
       });
